@@ -189,6 +189,7 @@ public class VideoPlayerActivity extends BaseActivity {
         mCurrentPosition = getIntent().getIntExtra(Keys.CURRENT_POSITION,-1);
         if (mVideoItems == null || mVideoItems.isEmpty() || mCurrentPosition == -1) {
             return;
+            ///
         }
         mCurrentVideoItem = mVideoItems.get(mCurrentPosition);
         //把视频路径设置给VideoView,要想播放还要调用start方法
