@@ -9,7 +9,10 @@ import android.media.MediaPlayer;
 import android.os.BatteryManager;
 import android.os.Handler;
 import android.os.Message;
+import android.support.v4.view.ViewCompat;
 import android.text.format.DateFormat;
+import android.view.GestureDetector;
+import android.view.MotionEvent;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
@@ -46,7 +49,7 @@ public class VideoPlayerActivity extends BaseActivity {
     private int mCurrentPosition;
     private VideoView mVideoView;
     private VideoItem mCurrentVideoItem;
-    private BroadcastReceiver mMBatteryChangerRecriver;
+    private BroadcastReceiver mBatteryChangerRecriver;
     private static final int UPDATE_SYSTEM_TIME_SHOE = 0;
     private Handler mHandler  = new Handler(){
         @Override
@@ -61,6 +64,12 @@ public class VideoPlayerActivity extends BaseActivity {
     private AudioManager mAudioManager;
     private int mMaxVolume;
     private int mVolume;
+    private int mCurrentVolume;
+    private BroadcastReceiver mSoundChangedReceiver;
+
+    private GestureDetector mGestureDetector;
+    private View mScreen_bright;
+    private float mResultAlpha;
 
 
     @Override
@@ -83,8 +92,13 @@ public class VideoPlayerActivity extends BaseActivity {
         mSb_voice_progress = findView(R.id.sb_voice_progress);
         mBtn_full_screen = findView(R.id.btn_full_screen);
         mBtn_play = findView(R.id.btn_play);
-        //
+        mScreen_bright = findView(R.id.screen_bright);  //屏幕亮度的调节
+
+
+        //注册一个电池电量改变的广播接收者
         registerBatteryChangReceiver();
+        //注册一个音量改变的广播接收者
+        registerSoundChangedReceiver();
         //显示系统时间
         systemTimeShow();
         //初始化音量
@@ -94,7 +108,24 @@ public class VideoPlayerActivity extends BaseActivity {
     }
 
     /**
-     *
+     * 注册一个音量改变的广播接收者
+     */
+    private void registerSoundChangedReceiver() {
+        mSoundChangedReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                int currentVolume = getStreamVolume();
+                mSb_voice_progress.setProgress(currentVolume);
+            }
+        };
+        //拦截系统音量的广播
+        IntentFilter filter = new IntentFilter("android.media.STREAM_DEVICES_CHANGED_ACTION");
+
+        registerReceiver(mSoundChangedReceiver,filter);
+    }
+
+    /**
+     *初始化音量
      */
     private void initSound() {
         mAudioManager = (AudioManager) getSystemService(AUDIO_SERVICE);
@@ -124,7 +155,7 @@ public class VideoPlayerActivity extends BaseActivity {
      * 注册一个广播接收者来接收系统发送过来的电池电量的广播
      */
     private void registerBatteryChangReceiver() {
-        mMBatteryChangerRecriver = new BroadcastReceiver() {
+        mBatteryChangerRecriver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
 
@@ -136,7 +167,7 @@ public class VideoPlayerActivity extends BaseActivity {
         };
         //接收电量改变的广播
         IntentFilter filter = new IntentFilter(Intent.ACTION_BATTERY_CHANGED);
-        registerReceiver(mMBatteryChangerRecriver,filter);
+        registerReceiver(mBatteryChangerRecriver,filter);
 
     }
 
@@ -166,13 +197,7 @@ public class VideoPlayerActivity extends BaseActivity {
 
     }
 
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        //解除注册
-        unregisterReceiver(mMBatteryChangerRecriver);
-        mHandler.removeCallbacksAndMessages(null);
-    }
+
 
     @Override
     public void initListener() {
@@ -180,6 +205,9 @@ public class VideoPlayerActivity extends BaseActivity {
         mVideoView.setOnPreparedListener(mOnPreparedListener);
 
         mSb_voice_progress.setOnSeekBarChangeListener(audioOnSeekBarChangeListener);
+
+
+        mGestureDetector = new GestureDetector(this,mGestureListener);
 
     }
 
@@ -200,8 +228,9 @@ public class VideoPlayerActivity extends BaseActivity {
     public void onClick(View v) {
 
         switch (v.getId()) {
-            case R.id.btn_voice: //点击了音量
+            case R.id.btn_voice: //点击了静音的按钮
                 Utils.showToast(context, "点击了音量");
+                muteToggle();
                 break;
             case R.id.btn_exite: //点击了返回
                 Utils.showToast(context, "点击了返回");
@@ -219,6 +248,36 @@ public class VideoPlayerActivity extends BaseActivity {
             case R.id.btn_full_screen: //点击了全屏
                 Utils.showToast(context, "点击了全屏");
                 break;
+        }
+    }
+
+    /**
+     * 触摸事件,在这里设置 双击屏幕显示全屏,滑动屏幕更改屏幕的亮度和音量大小;
+     * @param event
+     * @return
+     */
+    @Override
+    public boolean onTouchEvent(MotionEvent event) {
+        //1.要识别手势的滑动就会用到GestureDetector
+
+
+        mGestureDetector.onTouchEvent(event);
+
+        return super.onTouchEvent(event);
+
+    }
+
+    /**静音的的开关*/
+    private void muteToggle() {
+        //判断,如果有音量值就静音
+        if (getStreamVolume() > 0) {
+            //在静音之前先保存当前的音量值,方便下一次回复
+            mCurrentVolume = getStreamVolume();
+            setStreamSound(0);
+            mSb_voice_progress.setProgress(0); //进度条也跟着显示
+        }else{
+            setStreamSound(mCurrentVolume);
+            mSb_voice_progress.setProgress(mCurrentVolume);
         }
     }
 
@@ -262,16 +321,11 @@ public class VideoPlayerActivity extends BaseActivity {
             if (fromUser) { //如果是用户触发的,就改变音量的大小,
                 //设置系统音量
                 setStreamSound(progress);
-
             }
         }
-
-
         @Override
         public void onStartTrackingTouch(SeekBar seekBar) {
-
         }
-
         @Override
         public void onStopTrackingTouch(SeekBar seekBar) {
 
@@ -283,6 +337,117 @@ public class VideoPlayerActivity extends BaseActivity {
      * @param progress
      */
     private void setStreamSound(int progress) {
+        //第三个参数用于显示系统音量面板,1的话就显示系统弹出里的音量面板,0的话就不显示
         mAudioManager.setStreamVolume(AudioManager.STREAM_MUSIC,progress,1);
+    }
+
+    /**
+     * 手势识别监听器
+     */
+    GestureDetector.OnGestureListener mGestureListener = new GestureDetector.SimpleOnGestureListener(){
+
+        private float mCurrentAlpha;
+        private boolean mLeftPress;
+
+        @Override //滑动
+        public boolean onScroll(MotionEvent e1, MotionEvent e2, float distanceX, float distanceY) {
+
+
+            //2.计算滑动距离
+            float moveDistence = e1.getY() - e2.getY();
+
+            if (mLeftPress ) {
+                //更改屏幕的亮度 ,为什么是负值呢?因为当屏幕向上滑动的术后,透明度的值越小,所以就要取反
+                changeScreenBrightByMoveDistence(-moveDistence);
+            }else{
+                 //改变音量
+                changeVomuleByMoveDistence(moveDistence);
+            }
+            return super.onScroll(e1, e2, distanceX, distanceY);
+
+        }
+
+        /**
+         * 通过滑动的距离改变音量值
+         * @param moveDistence
+         */
+        private void changeVomuleByMoveDistence(float moveDistence) {
+            //3.计算滑动的比例,屏幕的宽度与音量的最大值的比例;
+            float moveScale = (float)mMaxVolume / Utils.getScreenHeight(VideoPlayerActivity.this);
+            //4.计算滑动距离对应的音量值
+            int moveVolume = (int) (moveScale * moveDistence);
+
+            //5.在原有音量的基础上加上滑动屏幕是对应的音量值
+            int resultVolume = mCurrentVolume + moveVolume;
+            //6.限制音量值:以防音量在最大值的时候滑动屏幕时超出最大值的范围;
+            if (resultVolume > mMaxVolume) {
+                resultVolume = mMaxVolume;
+            }else if (resultVolume < 0) {
+                resultVolume = 0;
+            }
+            //7.把设置好的音量值设置给SeekBar控件显示
+            mSb_voice_progress.setProgress(resultVolume);
+            setStreamSound(resultVolume);
+        }
+
+        /**
+         * 通过滑动的距离改变屏幕亮度
+         * @param moveDistence
+         */
+        private void changeScreenBrightByMoveDistence(float moveDistence) {
+            //3.计算滑动的比例,屏幕的宽度与音量的最大值的比例;
+            float moveScale = 0.1f / Utils.getScreenHeight(VideoPlayerActivity.this);
+            //4.计算滑动距离对应的音量值
+            float moveAlpha =  (moveScale * moveDistence);
+
+            //5.在原有透明度的基础上加上滑动屏幕是对应的透明度;
+            mResultAlpha = mCurrentAlpha + moveAlpha;
+            //6.限制音量值:以防音量在最大值的时候滑动屏幕时超出最大值的范围;
+            if (mResultAlpha > 0.8f) {
+                mResultAlpha = 0.8f;
+            }else if (mResultAlpha < 0) {
+                mResultAlpha = 0;
+            }
+            //7.把设置好的音量值iew
+            ViewCompat.setAlpha(mScreen_bright,mResultAlpha);
+
+        }
+
+
+        @Override
+        public void onLongPress(MotionEvent e) {
+            super.onLongPress(e);
+        }
+
+        @Override
+        public boolean onDown(MotionEvent e) {
+            //按下的时候获取一下当前的当前的音量值
+            mCurrentVolume = getStreamVolume();
+            // 按下的时候获取一下当前的当前的透明度
+            mCurrentAlpha = ViewCompat.getAlpha( mScreen_bright);
+            //左边按下
+            mLeftPress = e.getX() < Utils.getScreenWidth(context) / 2;
+
+            return super.onDown(e);
+        }
+
+        @Override
+        public boolean onSingleTapConfirmed(MotionEvent e) {
+            return super.onSingleTapConfirmed(e);
+        }
+
+        @Override
+        public boolean onDoubleTap(MotionEvent e) {
+            return super.onDoubleTap(e);
+        }
+    };
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        //解除注册
+        unregisterReceiver(mBatteryChangerRecriver);
+        mHandler.removeCallbacksAndMessages(null);
+        unregisterReceiver(mSoundChangedReceiver);
     }
 }

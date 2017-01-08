@@ -14,14 +14,14 @@ public interface UiOpration extends View.OnClickListener{
      * 返回一个布局id用于返回一个正常界面
      * @return
      */
-    public abstract int getContentViewLayoutId();
+     int getContentViewLayoutId();
 
     /*** 初始化控件*/
-    public abstract void initView();
+    void initView();
 
     /*** 初始化监听器*/
-    public abstract void initListener();
+     void initListener();
 
     /*** 初始化数据*/
-    public abstract void initData();
+    void initData();
 }

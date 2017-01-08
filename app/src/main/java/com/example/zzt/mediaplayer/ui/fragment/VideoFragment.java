@@ -14,7 +14,6 @@ import com.example.zzt.mediaplayer.adapter.VideoListAdapter;
 import com.example.zzt.mediaplayer.bean.VideoItem;
 import com.example.zzt.mediaplayer.interfaces.Keys;
 import com.example.zzt.mediaplayer.ui.activity.VideoPlayerActivity;
-import com.example.zzt.mediaplayer.utils.Utils;
 
 import java.util.ArrayList;
 
@@ -86,7 +85,7 @@ public class VideoFragment extends BaseFragment {
             @Override
             protected void onQueryComplete(int token, Object cookie, Cursor cursor) {
                 //super.onQueryComplete(token, cookie, cursor);
-                Utils.printCursor(cursor);
+                //Utils.printCursor(cursor);
                 mListView.setAdapter(new VideoListAdapter(context,cursor));
             }
         };
